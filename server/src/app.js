@@ -22,9 +22,12 @@ app.get('/', (req, res)=>{
 import userRoute from './route/user.route.js'
 import gigRoute from './route/gig.route.js'
 import bidRoute from './route/bid.route.js'
+import { errorHandler } from './middleware/error.middleware.js'
 
 app.use('/api/auth', userRoute);
 app.use('/api/gigs', gigRoute);
 app.use('/api/bids', bidRoute);
+
+app.use(errorHandler);
 
 export {app}

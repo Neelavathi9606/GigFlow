@@ -57,7 +57,7 @@ const createGig = asyncHandler(async (req, res)=>{
 
 const updateGig = asyncHandler(async (req, res)=>{
   const {title, description, budget, slug} = req.body;
-  const gigId = req.params._id;
+  const gigId = req.params.id;
 
   if(!gigId){
     throw new ApiError(404, "Gig id was not received");
@@ -219,12 +219,12 @@ const acceptGigFreelancer = asyncHandler(async (req, res)=>{
 
   try {
     const hiredBid = await Bid.findById(bidId).session(session);
-
-    const freelancerId = hiredBid.freelancerId;
   
     if(!hiredBid){
       throw new ApiError(404, "Bid not found");
     }
+
+    const freelancerId = hiredBid.freelancerId;
 
     const gig = await Gig.findById(gigId).session(session);
     if (!gig) {
