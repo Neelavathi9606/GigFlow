@@ -85,6 +85,20 @@ const updateGig = asyncHandler(async (req, res)=>{
     throw new ApiError(400, "Slug already in use");
   }
 
+  const gig = await Gig.findById(gigId);
+
+  if(!gig){
+    throw new ApiError(404, "Gig with the provided id was not found");
+  }
+
+  if(gig.ownerId.toString() !== req.user._id.toString()){
+    throw new ApiError(403, "Access denied. Only the gig owner can update this gig");
+  }
+
+  if(gig.status === "assigned"){
+    throw new ApiError(400, "Cannot update a gig that has already been assigned");
+  }
+
   const updatedGig = await Gig.findByIdAndUpdate(
     gigId,
     {
@@ -186,7 +200,18 @@ const deleteGig = asyncHandler(async (req, res)=>{
     throw new ApiError(404, "Gig id was not received");
   }
 
+  const gig = await Gig.findById(gigId);
+
+  if(!gig){
+    throw new ApiError(404, "Gig with the provided id was not found");
+  }
+
+  if(gig.ownerId.toString() !== req.user._id.toString()){
+    throw new ApiError(403, "Access denied. Only the gig owner can delete this gig");
+  }
+
   const deletedGig = await Gig.findByIdAndDelete(gigId);
+  await Bid.deleteMany({ gigId: gigId });
 
   if(!deletedGig){
     throw new ApiError(404, "Gig with the provided id was not found");
@@ -230,8 +255,21 @@ const acceptGigFreelancer = asyncHandler(async (req, res)=>{
     if (!gig) {
       throw new ApiError(404, "Gig not found");
     }
+
+    if (gig.ownerId.toString() !== req.user._id.toString()) {
+      throw new ApiError(403, "Access denied. Only the gig owner can hire a freelancer");
+    }
+
     if (gig.status === "assigned") {
       throw new ApiError(400, "This gig has already been assigned");
+    }
+
+    if (hiredBid.gigId.toString() !== gig._id.toString()) {
+      throw new ApiError(400, "This bid does not belong to the specified gig");
+    }
+
+    if (hiredBid.status !== "pending") {
+      throw new ApiError(400, `Cannot hire freelancer with bid status '${hiredBid.status}'`);
     }
   
     hiredBid.status = "hired";
@@ -318,4 +356,35 @@ const acceptGigFreelancer = asyncHandler(async (req, res)=>{
   }
 });
 
-export {createGig, updateGig, getAllGig, getGigById, deleteGig, acceptGigFreelancer}
+const getMyGigs = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const { page = 1, limit = 10 } = req.query;
+
+  const pageNumber = parseInt(page, 10);
+  const limitNumber = parseInt(limit, 10);
+  const skip = (pageNumber - 1) * limitNumber;
+
+  const totalGigs = await Gig.countDocuments({ ownerId: userId });
+  const myGigs = await Gig.find({ ownerId: userId })
+    .populate("ownerId", "name username email")
+    .populate("hiredFreelancerId", "name username email")
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limitNumber);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        count: myGigs.length,
+        total: totalGigs,
+        totalPages: Math.ceil(totalGigs / limitNumber) || 1,
+        currentPage: pageNumber,
+        gigs: myGigs,
+      },
+      "User gigs fetched successfully"
+    )
+  );
+});
+
+export {createGig, updateGig, getAllGig, getGigById, deleteGig, acceptGigFreelancer, getMyGigs}

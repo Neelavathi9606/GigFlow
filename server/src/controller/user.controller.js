@@ -52,14 +52,16 @@ const registerUser = asyncHandler(async (req, res)=> {
     password
   });
 
-  if(!user) {
+  const createdUser = await User.findById(user._id).select("-password -refreshToken");
+
+  if(!createdUser) {
     throw new ApiError(500, "Unable to register a user");
   }
 
-  return res.status(200).json(
+  return res.status(201).json(
     new ApiResponse(
-      200,
-      user,
+      201,
+      createdUser,
       "User Registered Successfully"
     )
   )
@@ -147,4 +149,14 @@ const logoutUser = asyncHandler(async (req, res) => {
   )
 })
 
-export {registerUser, loginUser, logoutUser};
+const getCurrentUser = asyncHandler(async (req, res) => {
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      req.user,
+      "Current user fetched successfully"
+    )
+  );
+});
+
+export {registerUser, loginUser, logoutUser, getCurrentUser};

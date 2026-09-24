@@ -21,6 +21,19 @@ const createBid = asyncHandler(async(req, res)=>{
     throw new ApiError(404, "Freelancer Id was not received");
   }
 
+  const gig = await Gig.findById(gigId);
+  if(!gig){
+    throw new ApiError(404, "Gig not found");
+  }
+
+  if(gig.status !== "open"){
+    throw new ApiError(400, "Cannot bid on a gig that is not open");
+  }
+
+  if(gig.ownerId.toString() === freelancerId.toString()){
+    throw new ApiError(400, "You cannot bid on your own gig");
+  }
+
   const existingBid = await Bid.findOne({ gigId, freelancerId });
   if(existingBid){
     throw new ApiError(400, "You have already placed a bid on this gig");
@@ -59,14 +72,14 @@ const createBid = asyncHandler(async(req, res)=>{
 
 const updateBid = asyncHandler(async(req, res)=>{
   const bidId = req.params.id;
-  const {gigId, message, proposedPrice} = req.body;
+  const {message, proposedPrice} = req.body;
   const freelancerId = req.user._id;
 
   if(!bidId){
     throw new ApiError(400, "Bid ID is required");
   }
 
-  if(!gigId || !message || !proposedPrice){
+  if(!message || !proposedPrice){
     throw new ApiError(400, "All the fields are required");
   }
 
@@ -78,23 +91,33 @@ const updateBid = asyncHandler(async(req, res)=>{
     throw new ApiError(404, "Freelancer Id was not received");
   }
 
-  const updatedBid = await Bid.findByIdAndUpdate(bidId, 
-    {
-      gigId,
-      freelancerId,
-      message,
-      proposedPrice,
-      status:"pending"
-    },
-    {new : true}
-  ).populate("gigId", "title description slug budget ownerId")
-  .populate({
-    path: "gigId",
-    populate: {
-      path: "ownerId",
-      select: "name username email"
-    }
-  });
+  const bid = await Bid.findById(bidId);
+
+  if(!bid){
+    throw new ApiError(404, "Bid not found");
+  }
+
+  if(bid.freelancerId.toString() !== freelancerId.toString()){
+    throw new ApiError(403, "Access denied. Only the bid owner can update this bid");
+  }
+
+  if(bid.status !== "pending"){
+    throw new ApiError(400, `Cannot update a bid that has already been ${bid.status}`);
+  }
+
+  bid.message = message;
+  bid.proposedPrice = proposedPrice;
+  await bid.save();
+
+  const updatedBid = await Bid.findById(bidId)
+    .populate("gigId", "title description slug budget ownerId")
+    .populate({
+      path: "gigId",
+      populate: {
+        path: "ownerId",
+        select: "name username email"
+      }
+    });
 
   if(!updatedBid){
     throw new ApiError(500, "Unable to update the bid");
@@ -111,9 +134,24 @@ const updateBid = asyncHandler(async(req, res)=>{
 
 const deleteBid = asyncHandler(async(req, res)=>{
   const bidId = req.params.id;
+  const freelancerId = req.user._id;
 
   if(!bidId){
     throw new ApiError(400, "Bid ID is required");
+  }
+
+  const bid = await Bid.findById(bidId);
+
+  if(!bid){
+    throw new ApiError(404, "Bid not found");
+  }
+
+  if(bid.freelancerId.toString() !== freelancerId.toString()){
+    throw new ApiError(403, "Access denied. Only the bid owner can delete this bid");
+  }
+
+  if(bid.status === "hired"){
+    throw new ApiError(400, "Cannot delete a bid that has already been hired");
   }
 
   const deletedBid = await Bid.findByIdAndDelete(bidId);

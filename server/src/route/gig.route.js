@@ -5,7 +5,8 @@ import {
   getAllGig, 
   getGigById, 
   deleteGig, 
-  acceptGigFreelancer 
+  acceptGigFreelancer,
+  getMyGigs
 } from "../controller/gig.controller.js";
 import { verifyJWT } from "../middleware/user.middlewaare.js";
 
@@ -14,7 +15,8 @@ const router = Router();
 router.get("/", getAllGig);
 
 router.post("/", verifyJWT, createGig);
-router.get("/:id", verifyJWT, getGigById);
+router.get("/user/mygigs", verifyJWT, getMyGigs);
+router.get("/:id", getGigById);
 router.put("/:id", verifyJWT, updateGig);
 router.delete("/:id", verifyJWT, deleteGig);
 
